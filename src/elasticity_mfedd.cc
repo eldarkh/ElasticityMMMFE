@@ -49,6 +49,7 @@
 #include "../inc/elasticity_mfedd.h"
 #include "../inc/utilities.h"
 
+//TODO: FIX INTERFACE ERROR COMPUTATION
 namespace dd_elasticity
 {
   using namespace dealii;
@@ -738,10 +739,10 @@ namespace dd_elasticity
         for (unsigned int side = 0; side < n_faces_per_cell; ++side)
           for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
             {
-              solution_star_mortar.sadd(
+              solution_star_mortar.block(0).sadd(
                 1.0,
                 interface_fe_function_mortar[interface_dofs[side][i]],
-                multiscale_basis[j]);
+                multiscale_basis[j].block(0));
               j += 1;
             }
       }
@@ -839,9 +840,9 @@ namespace dd_elasticity
             for (unsigned int side = 0; side < n_faces_per_cell; ++side)
               for (unsigned int i = 0; i < interface_dofs[side].size(); ++i)
                 {
-                  solution_star_mortar.sadd(1.0,
+                  solution_star_mortar.block(0).sadd(1.0,
                                             interface_data[side][i],
-                                            multiscale_basis[j]);
+                                            multiscale_basis[j].block(0));
                   j += 1;
                 }
           }
