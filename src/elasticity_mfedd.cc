@@ -2,7 +2,7 @@
  * Implementation of the MixedElasticityProblemDD class
  * ---------------------------------------------------------------------
  *
- * Author: Eldar Khattatov, University of Pittsburgh, 2016 - 2017
+ * Author: Eldar Khattatov, University of Pittsburgh, 2016 - 2018
  */
 
 // Internals
@@ -49,7 +49,6 @@
 #include "../inc/elasticity_mfedd.h"
 #include "../inc/utilities.h"
 
-//TODO: FIX INTERFACE ERROR COMPUTATION
 namespace dd_elasticity
 {
   using namespace dealii;
@@ -1063,8 +1062,7 @@ namespace dd_elasticity
                                                     Vector<double>(dim));
 
     // Assemble rhs for star problem with data = u - lambda_H on interfaces
-    typename DoFHandler<dim>::active_cell_iterator cell =
-                                                     dof_handler.begin_active(),
+    typename DoFHandler<dim>::active_cell_iterator cell = dof_handler.begin_active(),
                                                    endc = dof_handler.end();
     for (; cell != endc; ++cell)
       {
@@ -1114,7 +1112,7 @@ namespace dd_elasticity
           system_rhs_star(local_dof_indices[i]) += local_rhs(i);
       }
 
-    // Solve star problem with data given by p - lambda_h
+    // Solve star problem with data given by u - lambda_h
     solve_star();
 
     // Project the solution to the mortar space
@@ -1374,7 +1372,7 @@ namespace dd_elasticity
         convergence_table.add_value("Rotat,L2", recv_buf_num[4]);
 
         if (mortar_flag)
-          convergence_table.add_value("Lambda,Int", recv_buf_num[6]);
+          convergence_table.add_value("Lambda,Int", recv_buf_num[5]);
       }
   }
 
@@ -1592,13 +1590,8 @@ namespace dd_elasticity
           }
         else
           {
-            if (mortar_flag == 0)
-              triangulation.refine_global(1);
-            else if (mortar_degree <= 2)
-              triangulation.refine_global(1);
-            else if (mortar_degree > 2)
-              triangulation.refine_global(2);
-
+             triangulation.refine_global(1);
+        
             if (mortar_flag)
               {
                 triangulation_mortar.refine_global(1);
