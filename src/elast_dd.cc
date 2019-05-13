@@ -17,11 +17,34 @@
  */
 
 // Utilities, data, etc.
+#include <map>
 #include "../inc/elasticity_mfedd.h"
 
+static void show_usage(std::string name, dealii::ConditionalOStream &pcout)
+{
+    pcout << "Usage: " << name << " <option(s)> \n"
+          << "Options:\n"
+          << "\t-h,--help\t\tShow the usage format\n"
+          << "\t-m,--mortar MORTAR_DEGREE\tSpecify the mortar degree (use 0 for no mortar)\n"
+          << "\t-r,--refine REFINEMENT_CYCLES\tSpecify the number of refinements\n"
+          << "\t-d,--dim DIMENSION\tSpecify the physical dimension\n"
+          << "\t-o,--order ORDER\tSpecify the finite element order"
+          << std::endl;
+}
+
+static bool check_arguments(int argc, char *argv[], dealii::ConditionalOStream &pcout)
+{
+    if (argc != 9 && (std::string(argv[1]) != "--help" and std::string(argv[1]) != "-h"))
+      { 
+        show_usage(argv[0], pcout);
+        return 1;
+      }
+    else
+	return 0;
+}
+
 // Main function is simple here
-int
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
   try
     {
@@ -30,55 +53,104 @@ main(int argc, char *argv[])
 
       MultithreadInfo::set_thread_limit(4);
       Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
+    
+      ConditionalOStream pcerr(std::cerr, (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0));
+      ConditionalOStream pcout(std::cout, (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0));
 
-      // Mortar mesh parameters (non-matching checkerboard)
-      std::vector<std::vector<unsigned int>> mesh_m2d(5);
-      mesh_m2d[0] = {2, 2};
-      mesh_m2d[1] = {3, 3};
-      mesh_m2d[2] = {3, 3};
-      mesh_m2d[3] = {2, 2};
-      mesh_m2d[4] = {1, 1};
+      if (check_arguments(argc, argv, pcerr))
+	return 1;
 
-      std::vector<std::vector<unsigned int>> mesh_m3d(9);
-      mesh_m3d[0] = {2, 2, 2};
-      mesh_m3d[1] = {3, 3, 3};
-      mesh_m3d[2] = {3, 3, 3};
-      mesh_m3d[3] = {2, 2, 2};
-      mesh_m3d[4] = {3, 3, 3};
-      mesh_m3d[5] = {2, 2, 2};
-      mesh_m3d[6] = {2, 2, 2};
-      mesh_m3d[7] = {3, 3, 3};
-      mesh_m3d[8] = {1, 1, 1};
+      std::map<std::string,int> options;
+      for (unsigned int i=1; i<argc; i+=2)
+        options[std::string(argv[i])] = std::stoi(argv[i+1]);
 
-      MixedElasticityProblemDD<2> no_mortars(1);
-      //        MixedElasticityProblemDD<2> lin_mortars(1,1,1);
-      //        MixedElasticityProblemDD<2> quad_mortars(1,1,2);
-      //        MixedElasticityProblemDD<2> cubic_mortars(1,2,3);
+      unsigned int mortar_degree;
+      unsigned int refinement_cycles;
+      unsigned int dimension;
+      unsigned int order;
 
-      std::string name1("M0");
-      std::string name2("M1");
-      std::string name3("M2");
-      std::string name4("M3");
+      for (const auto &el : options)
+        {
+          if (el.first == "--mortar" || el.first == "-m")
+              mortar_degree = el.second;
+          else if (el.first == "--refine" || el.first == "-r")
+              refinement_cycles = el.second;
+          else if (el.first == "--dim" || el.first == "-d")
+              dimension = el.second;
+          else if (el.first == "--order" || el.first == "-o")
+              order = el.second;
+          else if (el.first == "--help" || el.first == "-h")
+              show_usage(argv[0],pcout);
+          else
+            {
+              std::cerr << "Unsupported option " << el.first << std::endl;
+              return 1;
+            }
+        }
 
-      //        MixedElasticityProblemDD<3> no_mortars_3d(1);
-      //        MixedElasticityProblemDD<3> lin_mortars3d(1,1,1);
-      //        MixedElasticityProblemDD<3> quad_mortars_2_3d(1,1,1);
-      //        MixedElasticityProblemDD<3> cubic_mortars_1_3d(1,1,2);
-      //        MixedElasticityProblemDD<3> cubic_mortars_2_3d(1,1,2);
+      pcout << std::boolalpha;
+      pcout << "Running mixed elasticity problem with the following parameters:\n"
+                << "\t FE order = " << order << std::endl
+                << "\t dimension = " << dimension << std::endl
+                << "\t with mortars = " << bool(mortar_degree) << ", of order " << mortar_degree << std::endl
+                << "\t number of refinements = " << refinement_cycles << std::endl
+                << "\t with MSB = " << (mortar_degree > 2) << std::endl
+		<< "==============================================================\n";
 
-      //        std::string name13("M0_3d");
-      //        std::string name23("M1_3d");
-      //        std::string name33("M2_3d");
+      if (dimension == 2)
+        {
+          std::vector<std::string> names {"M0_2d", "M1_2d", "M1_2d", "M2_2d"};
 
-      // 2d cases
-      no_mortars.run(4, mesh_m2d, 1.e-14, name1, 500);
-      //        lin_mortars.run (7, mesh_m2d, 1.e-14, name2, 500, 51);
-      //        quad_mortars.run (7, mesh_m2d, 1.e-14, name3, 500, 61);
-      //        cubic_mortars.run (4, mesh_m2d, 1.e-14, name4, 500, 71);
+          //TODO: generalize for any nprocs
+          std::vector<std::vector<unsigned int>> mesh_m2d(8);
+          mesh_m2d[0] = {2, 2};
+          mesh_m2d[1] = {1, 1};
+          mesh_m2d[2] = {4, 4};
+          mesh_m2d[3] = {3, 3};
+          mesh_m2d[4] = {2, 1};
+          mesh_m2d[5] = {1, 1};
+          mesh_m2d[6] = {2, 2};
+          mesh_m2d[7] = {1, 2};
 
-      //        // 3d cases
-      //        no_mortars_3d.run (2, mesh_matching3d, 1.e-10, name13, 500);
-      //        lin_mortars3d.run (2, mesh_m3d, 1.e-12, name23, 500, 15);
+          if (mortar_degree == 0)
+            {
+              MixedElasticityProblemDD<2> no_mortars(order);
+              no_mortars.run(refinement_cycles, mesh_m2d, 1.e-14, names[mortar_degree], 500);
+            }
+          else
+            {
+              MixedElasticityProblemDD<2> with_mortars(order, (mortar_degree <= 2) ? 1 : 2, mortar_degree);
+              with_mortars.run (refinement_cycles, mesh_m2d, 1.e-14, names[mortar_degree], 500, 51);
+            }
+        }
+      else
+        {
+          std::vector<std::string> names {"M0_3d", "M1_3d", "M1_3d", "M2_3d"};
+
+          //TODO: generalize for any nprocs
+          std::vector<std::vector<unsigned int>> mesh_m3d(16);
+          mesh_m3d[0] = {2, 2, 2};
+          mesh_m3d[1] = {3, 3, 3};
+          mesh_m3d[2] = {3, 3, 3};
+          mesh_m3d[3] = {2, 2, 2};
+          mesh_m3d[4] = {3, 3, 3};
+          mesh_m3d[5] = {2, 2, 2};
+          mesh_m3d[6] = {2, 2, 2};
+          mesh_m3d[7] = {3, 3, 3};
+          for (unsigned int i=8; i<16; ++i)
+            mesh_m3d[i] = {1, 1, 1};
+
+          if (mortar_degree == 0)
+          {
+            MixedElasticityProblemDD<3> no_mortars(order);
+            no_mortars.run(refinement_cycles, mesh_m3d, 1.e-14, names[mortar_degree], 500);
+          }
+          else
+          {
+            MixedElasticityProblemDD<3> with_mortars(order, (mortar_degree <= 2) ? 1 : 2, mortar_degree);
+            with_mortars.run (refinement_cycles, mesh_m3d, 1.e-14, names[mortar_degree], 500, 71);
+          }
+        }      
     }
   catch (std::exception &exc)
     {

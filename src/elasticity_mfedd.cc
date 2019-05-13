@@ -1584,7 +1584,7 @@ namespace dd_elasticity
 
             if (mortar_flag)
               GridGenerator::subdivided_hyper_rectangle(triangulation_mortar,
-                                                        reps[n_processes],
+                                                        reps[n_processes+this_mpi],
                                                         p1,
                                                         p2);
           }
